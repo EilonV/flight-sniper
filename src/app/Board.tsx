@@ -43,15 +43,9 @@ interface ApiResponse {
   error?: string;
 }
 
-const REGION_ORDER = [
-  "Middle East",
-  "Europe",
-  "Africa",
-  "Asia",
-  "North America",
-  "South America",
-  "Oceania",
-  "Other",
+const MONTH_NAMES = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
 function flag(code: string | null): string {
@@ -82,9 +76,10 @@ function stopsLabel(t: number | null): string {
 }
 
 export default function Board() {
-  const [sort, setSort] = useState<"price" | "duration" | "depart">("price");
+  const [sort, setSort] = useState<"price" | "duration" | "depart" | "soon-cheap">("price");
   const [origin, setOrigin] = useState("");
   const [region, setRegion] = useState("");
+  const [months, setMonths] = useState<number[]>([]);
   const [minDays, setMinDays] = useState("");
   const [maxDays, setMaxDays] = useState("");
   const [direct, setDirect] = useState(false);
@@ -100,13 +95,14 @@ export default function Board() {
     p.set("sort", sort);
     if (origin) p.set("origin", origin);
     if (region) p.set("region", region);
+    if (months.length) p.set("months", months.join(","));
     if (minDays) p.set("minDays", minDays);
     if (maxDays) p.set("maxDays", maxDays);
     if (direct) p.set("direct", "1");
     if (bag) p.set("bag", "1");
     if (trolley) p.set("trolley", "1");
     return p.toString();
-  }, [sort, origin, region, minDays, maxDays, direct, bag, trolley]);
+  }, [sort, origin, region, months, minDays, maxDays, direct, bag, trolley]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -132,16 +128,8 @@ export default function Board() {
     }
   }
 
-  // Bucket groups into regions, preserving the server's sort order within each.
-  const byRegion = useMemo(() => {
-    const map = new Map<string, DealGroup[]>();
-    for (const g of data?.groups ?? []) {
-      const arr = map.get(g.region) ?? [];
-      arr.push(g);
-      map.set(g.region, arr);
-    }
-    return REGION_ORDER.filter((r) => map.has(r)).map((r) => [r, map.get(r)!] as const);
-  }, [data]);
+  const toggleMonth = (m: number) =>
+    setMonths((prev) => (prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]));
 
   const cur = (n: number) => n.toLocaleString();
 
@@ -183,6 +171,12 @@ export default function Board() {
             <button className={sort === "depart" ? "active" : ""} onClick={() => setSort("depart")}>
               Soonest
             </button>
+            <button
+              className={sort === "soon-cheap" ? "active" : ""}
+              onClick={() => setSort("soon-cheap")}
+            >
+              Soonest &amp; cheap
+            </button>
           </div>
         </div>
 
@@ -210,6 +204,31 @@ export default function Board() {
               </option>
             ))}
           </select>
+        </div>
+
+        <div className="control">
+          <label>
+            Departure month
+            {months.length > 0 && (
+              <button className="link-clear" onClick={() => setMonths([])}>
+                Clear
+              </button>
+            )}
+          </label>
+          <div className="months">
+            {MONTH_NAMES.map((name, i) => {
+              const m = i + 1;
+              return (
+                <button
+                  key={m}
+                  className={months.includes(m) ? "active" : ""}
+                  onClick={() => toggleMonth(m)}
+                >
+                  {name}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div className="control">
@@ -273,19 +292,11 @@ export default function Board() {
           No deals match these filters yet. Try clearing filters or click <b>Scan now</b>.
         </div>
       ) : (
-        byRegion.map(([regionName, groups]) => (
-          <section key={regionName}>
-            <div className="region">
-              <h2>{regionName}</h2>
-              <span className="count">{groups.length} destinations</span>
-            </div>
-            <div className="grid">
-              {groups.map((g) => (
-                <DestinationCard key={g.destination} g={g} cur={cur} />
-              ))}
-            </div>
-          </section>
-        ))
+        <div className="grid">
+          {data?.groups.map((g) => (
+            <DestinationCard key={g.destination} g={g} cur={cur} />
+          ))}
+        </div>
       )}
     </>
   );
@@ -293,52 +304,44 @@ export default function Board() {
 
 function DestinationCard({ g, cur }: { g: DealGroup; cur: (n: number) => string }) {
   const c = g.cheapest;
-  const dur = fmtDuration(c.duration);
   return (
-    <div className={`card ${g.tier}`}>
-      <div className="card-top">
-        <div>
-          <div className="dest">
-            <span className="flag">{flag(g.dest_country_code)}</span>
-            {g.dest_city}
-            <span style={{ color: "var(--muted)", fontWeight: 500, fontSize: 13 }}>
-              {g.destination}
-            </span>
+    <details className={`card group ${g.tier}`} open>
+      <summary className="card-summary">
+        <div className="card-top">
+          <div>
+            <div className="dest">
+              <span className="flag">{flag(g.dest_country_code)}</span>
+              {g.dest_city}
+              <span style={{ color: "var(--muted)", fontWeight: 500, fontSize: 13 }}>
+                {g.destination}
+              </span>
+            </div>
+            <div className="dest-country">{g.dest_country}</div>
           </div>
-          <div className="dest-country">{g.dest_country}</div>
+          {g.tier === "hot" && <span className="badge hot">🔥 HOT</span>}
+          {g.tier === "good" && <span className="badge good">💸 GOOD</span>}
         </div>
-        {g.tier === "hot" && <span className="badge hot">🔥 HOT</span>}
-        {g.tier === "good" && <span className="badge good">💸 GOOD</span>}
-      </div>
 
-      <div className="price">
-        {cur(c.displayPrice)}
-        <span className="cur">{c.currency.toUpperCase()}</span>
-      </div>
-      {g.discountPct ? <div className="discount">{g.discountPct}% below typical</div> : null}
+        <div className="price">
+          from {cur(c.displayPrice)}
+          <span className="cur">{c.currency.toUpperCase()}</span>
+        </div>
+        {g.discountPct ? <div className="discount">{g.discountPct}% below typical</div> : null}
+        <div className="group-count">
+          {g.count} flight{g.count > 1 ? "s" : ""}
+        </div>
+      </summary>
 
-      <div className="meta">
-        <span>
-          {fmtDate(c.depart_date)} → {fmtDate(c.return_date)}
-        </span>
-        <span>{c.trip_days} days</span>
-        <span>{stopsLabel(c.transfers)}</span>
-        {dur && <span>{dur}</span>}
-        {c.airline && <span>{c.airline}</span>}
-      </div>
-
-      <a className="book" href={c.bookingUrl} target="_blank" rel="noopener noreferrer">
-        Book on Aviasales →
-      </a>
-
-      {g.deals.length > 1 && (
-        <details className="alts">
-          <summary>{g.count} more date options</summary>
-          {g.deals.slice(1).map((d, i) => (
+      <div className="group-flights">
+        {g.deals.map((d, i) => {
+          const dur = fmtDuration(d.duration);
+          return (
             <div className="alt" key={i}>
               <span>
                 {fmtDate(d.depart_date)} → {fmtDate(d.return_date)} · {d.trip_days}d ·{" "}
                 {stopsLabel(d.transfers)}
+                {dur ? ` · ${dur}` : ""}
+                {d.airline ? ` · ${d.airline}` : ""}
               </span>
               <span style={{ display: "flex", gap: 10, alignItems: "center" }}>
                 <b>
@@ -349,9 +352,9 @@ function DestinationCard({ g, cur }: { g: DealGroup; cur: (n: number) => string 
                 </a>
               </span>
             </div>
-          ))}
-        </details>
-      )}
-    </div>
+          );
+        })}
+      </div>
+    </details>
   );
 }

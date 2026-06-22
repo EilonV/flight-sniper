@@ -49,12 +49,13 @@ export interface DealFilters {
   minDays?: number;
   maxDays?: number;
   region?: string;
+  months?: number[]; // departure month-of-year, 1-12
   departFrom?: string; // YYYY-MM-DD
   departTo?: string;
   directOnly?: boolean;
   checkedBag?: boolean;
   trolley?: boolean;
-  sort?: "price" | "duration" | "depart";
+  sort?: "price" | "duration" | "depart" | "soon-cheap";
   altsPerDest?: number;
 }
 
@@ -110,8 +111,11 @@ export function getDealGroups(f: DealFilters): {
   const where: string[] = [];
   const params: (string | number)[] = [];
 
+  // Floor at tomorrow ("from the next day onward").
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
   where.push("depart_date >= ?");
-  params.push(new Date().toISOString().slice(0, 10));
+  params.push(tomorrow.toISOString().slice(0, 10));
 
   if (f.origin) {
     where.push("origin = ?");
@@ -128,6 +132,11 @@ export function getDealGroups(f: DealFilters): {
   if (f.region) {
     where.push("region = ?");
     params.push(f.region);
+  }
+  if (f.months && f.months.length) {
+    const ph = f.months.map(() => "?").join(",");
+    where.push(`CAST(strftime('%m', depart_date) AS INTEGER) IN (${ph})`);
+    params.push(...f.months);
   }
   if (f.departFrom) {
     where.push("depart_date >= ?");
@@ -146,7 +155,7 @@ export function getDealGroups(f: DealFilters): {
     .all(...params) as unknown as DealRow[];
 
   const stats = getStats();
-  const altsPerDest = f.altsPerDest ?? 6;
+  const altsPerDest = f.altsPerDest ?? Infinity;
 
   // Group by destination.
   const groupsMap = new Map<string, DealRow[]>();
@@ -195,6 +204,8 @@ function sortViews(views: DealView[], sort: DealFilters["sort"]): void {
     views.sort((a, b) => a.depart_date.localeCompare(b.depart_date) || a.displayPrice - b.displayPrice);
   } else if (sort === "duration") {
     views.sort((a, b) => durationKey(a) - durationKey(b) || a.displayPrice - b.displayPrice);
+  } else if (sort === "soon-cheap") {
+    views.sort((a, b) => soonKey(a) - soonKey(b) || a.displayPrice - b.displayPrice);
   } else {
     views.sort((a, b) => a.displayPrice - b.displayPrice);
   }
@@ -211,9 +222,19 @@ function sortGroups(groups: DealGroup[], sort: DealFilters["sort"]): void {
     groups.sort(
       (a, b) => durationKey(a.cheapest) - durationKey(b.cheapest) || a.cheapest.displayPrice - b.cheapest.displayPrice,
     );
+  } else if (sort === "soon-cheap") {
+    groups.sort(
+      (a, b) => soonKey(a.cheapest) - soonKey(b.cheapest) || a.cheapest.displayPrice - b.cheapest.displayPrice,
+    );
   } else {
     groups.sort((a, b) => a.cheapest.displayPrice - b.cheapest.displayPrice);
   }
+}
+
+/** Whole weeks from now until departure. 0 = within a week, 1 = next week, … */
+function soonKey(v: DealView): number {
+  const days = Math.max(0, Math.floor((Date.parse(v.depart_date) - Date.now()) / 86_400_000));
+  return Math.floor(days / 7);
 }
 
 /**

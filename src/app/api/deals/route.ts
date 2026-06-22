@@ -21,13 +21,21 @@ export async function GET(req: Request) {
 
   const sortParam = searchParams.get("sort");
   const sort: DealFilters["sort"] =
-    sortParam === "duration" || sortParam === "depart" ? sortParam : "price";
+    sortParam === "duration" || sortParam === "depart" || sortParam === "soon-cheap"
+      ? sortParam
+      : "price";
+
+  const months = (searchParams.get("months") ?? "")
+    .split(",")
+    .map(Number)
+    .filter((n) => n >= 1 && n <= 12);
 
   const filters: DealFilters = {
     origin: searchParams.get("origin") ?? undefined,
     minDays: num(searchParams.get("minDays")),
     maxDays: num(searchParams.get("maxDays")),
     region: searchParams.get("region") ?? undefined,
+    months: months.length ? months : undefined,
     departFrom: searchParams.get("departFrom") ?? undefined,
     departTo: searchParams.get("departTo") ?? undefined,
     directOnly: searchParams.get("direct") === "1",

@@ -78,7 +78,7 @@ export const config = {
 export function assertCredentials() {
   if (!config.token) {
     throw new Error(
-      "TP_TOKEN is not set. Copy .env.example to .env.local and fill in your Travelpayouts API token.",
+      "TP_TOKEN is not set. Copy .env to .env.local and fill in your Travelpayouts API token.",
     );
   }
 }

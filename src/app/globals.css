@@ -111,6 +111,41 @@ a {
   background: var(--accent);
   color: white;
 }
+/* Month multi-select chips */
+.months {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 320px;
+}
+.months button {
+  border: 1px solid var(--border);
+  background: var(--chip);
+  color: var(--muted);
+  padding: 6px 9px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.months button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+.link-clear {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: 8px;
+  padding: 0;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 select,
 input[type="number"],
 input[type="date"] {
@@ -298,6 +333,44 @@ input[type="date"] {
 }
 .alt:last-child {
   border-bottom: 0;
+}
+
+/* Collapsible destination group */
+.card.group {
+  padding: 0;
+}
+.card.group > .card-summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 14px 15px;
+  position: relative;
+}
+.card.group > .card-summary::-webkit-details-marker {
+  display: none;
+}
+.card.group > .card-summary .card-top {
+  padding-right: 18px;
+}
+.card.group > .card-summary::after {
+  content: "▾";
+  position: absolute;
+  top: 16px;
+  right: 15px;
+  color: var(--muted);
+  font-size: 13px;
+  transition: transform 0.12s;
+}
+.card.group:not([open]) > .card-summary::after {
+  transform: rotate(-90deg);
+}
+.group-count {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 6px;
+}
+.group-flights {
+  padding: 0 15px 12px;
+  border-top: 1px solid var(--border);
 }
 .alt a {
   color: var(--accent);
