@@ -9,3 +9,4 @@ data/*.db-*
 *.tsbuildinfo
 next-env.d.ts
 .DS_Store
+.env.example
